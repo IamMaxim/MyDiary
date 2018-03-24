@@ -10,33 +10,41 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.HashSet;
 
 import ru.iammaxim.mydiary.App;
 import ru.iammaxim.mydiary.DB.DBHelper;
 import ru.iammaxim.mydiary.DB.Diary;
 import ru.iammaxim.mydiary.R;
-import ru.iammaxim.mydiary.Views.ExpandableEntryView;
 
 public class NoteList extends AppCompatActivity {
     SimpleDateFormat sdf = new SimpleDateFormat("dd MMM yy HH:mm:ss");
     NoteListAdapter adapter;
+    private String passedPath;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_note_list);
+        passedPath = getIntent().getStringExtra("path");
+        if (passedPath == null)
+            passedPath = "";
+        if (!passedPath.isEmpty()) {
+            setTitle(passedPath);
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
 
         // init DB
         App.mDBHelper = new DBHelper(this);
 
-        findViewById(R.id.fab).setOnClickListener(b -> createNewNote("New note", "", ""));
+        findViewById(R.id.fab).setOnClickListener(b -> createNewNote("New note", "", passedPath));
 
         adapter = new NoteListAdapter();
         RecyclerView rv = findViewById(R.id.rv);
@@ -48,6 +56,16 @@ public class NoteList extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         loadDB();
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case android.R.id.home:
+                finish();
+                return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     private void createNewNote(String title, String text, String path) {
@@ -72,7 +90,6 @@ public class NoteList extends AppCompatActivity {
     }
 
     private void loadDB() {
-        System.out.println("loading db");
         SQLiteDatabase db = App.mDBHelper.getReadableDatabase();
 
         String[] projection = {
@@ -84,18 +101,23 @@ public class NoteList extends AppCompatActivity {
         };
 
         String sortOrder = Diary.Entry.COLUMN_NAME_DATE + " DESC";
+        String selection = Diary.Entry.COLUMN_NAME_PATH + " LIKE ?";
+        String[] selectionArgs = new String[]{passedPath + "%"};
 
         Cursor cursor = db.query(
                 Diary.Entry.TABLE_NAME,
                 projection,
-                null,
-                null,
+                selection,
+                selectionArgs,
                 null,
                 null,
                 sortOrder
         );
 
+        // clear adapter before loading it again
         adapter.entries.clear();
+        adapter.expandableEntries.clear();
+
         while (cursor.moveToNext()) {
             long id = cursor.getLong(cursor.getColumnIndexOrThrow(Diary.Entry._ID));
             String title = cursor.getString(cursor.getColumnIndexOrThrow(Diary.Entry.COLUMN_NAME_TITLE));
@@ -103,27 +125,22 @@ public class NoteList extends AppCompatActivity {
             long date = cursor.getLong(cursor.getColumnIndexOrThrow(Diary.Entry.COLUMN_NAME_DATE));
             String path = cursor.getString(cursor.getColumnIndexOrThrow(Diary.Entry.COLUMN_NAME_PATH));
 
-            if (!path.isEmpty()) {
-                String[] tokens = path.split("/");
-                ExpandableEntry e = adapter.expandableEntries.get(tokens[0]);
-                if (e == null) {
-                    e = new ExpandableEntry(tokens[0]);
-                    adapter.expandableEntries.put(tokens[0], e);
-                    adapter.entries.add(e);
+            if (!path.isEmpty() && path.length() > passedPath.length()) {
+                String[] tokens = path.substring(Math.min(path.length(), passedPath.isEmpty() ? 0 : (passedPath.length() + 1))).split("/");
+                String newPath = (passedPath.isEmpty() ? "" : (passedPath + "/")) + tokens[0];
+                // if path is empty, do not add it
+                if (tokens.length == 1 && tokens[0].equals("")) {
+                    continue;
                 }
-                for (int i = 1; i < tokens.length; i++) {
-                    ExpandableEntry e1 = e.expandableEntries.get(tokens[i]);
-                    if (e1 == null) {
-                        e1 = new ExpandableEntry(tokens[i]);
-                        e.expandableEntries.put(tokens[i], e1);
-                        e.entries.add(e1);
-                    }
-                    e = e1;
-                }
+                // skip adding path if note with such path already added
+                if (adapter.expandableEntries.contains(newPath))
+                    continue;
+                adapter.entries.add(new ExpandableEntry(tokens[0], newPath));
+                adapter.expandableEntries.add(newPath);
+            } else {
+                Entry entry = new NoteEntry(id, title, text, date, path);
+                adapter.entries.add(entry);
             }
-
-            Entry entry = new NoteEntry(id, title, text, date, path);
-            adapter.entries.add(entry);
         }
         cursor.close();
         adapter.notifyDataSetChanged();
@@ -133,12 +150,11 @@ public class NoteList extends AppCompatActivity {
     }
 
     public class ExpandableEntry extends Entry {
-        public String name;
-        public ArrayList<Entry> entries = new ArrayList<>();
-        public HashMap<String, ExpandableEntry> expandableEntries = new HashMap<>();
+        public String name, path;
 
-        public ExpandableEntry(String name) {
+        public ExpandableEntry(String name, String path) {
             this.name = name;
+            this.path = path;
         }
     }
 
@@ -167,20 +183,22 @@ public class NoteList extends AppCompatActivity {
 
     public class NoteListAdapter extends RecyclerView.Adapter implements ItemClickListener {
         public ArrayList<Entry> entries = new ArrayList<>();
-        public HashMap<String, ExpandableEntry> expandableEntries = new HashMap<>();
+        public HashSet<String> expandableEntries = new HashSet<>();
 
         @Override
-        public NoteViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-            View view = null;
+        public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
             switch (viewType) {
-                case EntryType.NOTE:
-                    view = LayoutInflater.from(parent.getContext()).inflate(R.layout.note_list_entry, parent, false);
-                    break;
-                case EntryType.EXPANDABLE:
-                    view = new ExpandableEntryView(NoteList.this);
-                    break;
+                case EntryType.NOTE: {
+                    View view = LayoutInflater.from(NoteList.this).inflate(R.layout.note_list_entry, parent, false);
+                    return new NoteViewHolder(view);
+                }
+                case EntryType.EXPANDABLE: {
+//                    View view = new ExpandableEntryView(NoteList.this);
+                    View view = LayoutInflater.from(NoteList.this).inflate(R.layout.expandable_list_entry, parent, false);
+                    return new ExpandableViewHolder(view);
+                }
             }
-            return new NoteViewHolder(view);
+            return null;
         }
 
         @Override
@@ -189,17 +207,16 @@ public class NoteList extends AppCompatActivity {
             int viewType = getItemViewType(position);
 
             if (viewType == EntryType.NOTE) {
-                NoteViewHolder nvh = (NoteViewHolder) holder;
                 NoteEntry ne = (NoteEntry) entry;
+                NoteViewHolder nvh = (NoteViewHolder) holder;
                 nvh.title.setId(position);
                 nvh.title.setText(ne.title);
                 nvh.text.setText(ne.text);
                 nvh.date.setText(sdf.format(ne.date));
             } else if (viewType == EntryType.EXPANDABLE) {
-                ExpandableViewHolder evh = (ExpandableViewHolder) holder;
                 ExpandableEntry ee = (ExpandableEntry) entry;
+                ExpandableViewHolder evh = (ExpandableViewHolder) holder;
                 evh.name.setText(ee.name);
-//                ((NoteListAdapter) evh.rv.getAdapter()).;
             }
         }
 
@@ -227,7 +244,9 @@ public class NoteList extends AppCompatActivity {
                 openNote(((NoteEntry) entry).id);
             else if (viewType == EntryType.EXPANDABLE) {
                 ExpandableEntry ee = (ExpandableEntry) entry;
-
+                Intent intent = new Intent(NoteList.this, NoteList.class);
+                intent.putExtra("path", ee.path);
+                startActivity(intent);
             }
         }
 
@@ -250,13 +269,11 @@ public class NoteList extends AppCompatActivity {
 
         class ExpandableViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
             public TextView name;
-            public RecyclerView rv;
 
             public ExpandableViewHolder(View itemView) {
                 super(itemView);
                 itemView.setOnClickListener(this);
                 name = itemView.findViewById(R.id.name);
-                rv = itemView.findViewById(R.id.rv);
             }
 
             @Override

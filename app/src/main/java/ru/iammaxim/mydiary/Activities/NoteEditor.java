@@ -31,6 +31,7 @@ public class NoteEditor extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_note_editor);
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         text_tv = findViewById(R.id.text);
 
         if (!getIntent().hasExtra("id")) {
@@ -141,21 +142,21 @@ public class NoteEditor extends AppCompatActivity {
                 break;
             }
             case R.id.rename: {
-                View view = LayoutInflater.from(this).inflate(R.layout.note_editor_edit_dialog, null);
+                View view = LayoutInflater.from(this).inflate(R.layout.note_editor_edit_dialog, null, false);
                 EditText title_et = view.findViewById(R.id.title),
                         path_et = view.findViewById(R.id.path);
                 title_et.setText(title);
                 path_et.setText(path);
-//                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-//                        LinearLayout.LayoutParams.MATCH_PARENT,
-//                        LinearLayout.LayoutParams.MATCH_PARENT);
-//                title_et.setLayoutParams(lp);
-                new AlertDialog.Builder(this).setTitle("Change note title").setView(title_et).setPositiveButton("Save", (dialog, which) -> {
+                new AlertDialog.Builder(this).setTitle("Change note data").setView(view).setPositiveButton("Save", (dialog, which) -> {
                     title = title_et.getEditableText().toString();
                     setTitle(title);
                     path = path_et.getEditableText().toString();
                 }).setNegativeButton("Cancel", null).show();
                 break;
+            }
+            case android.R.id.home: {
+                finish();
+                return true;
             }
         }
         return super.onOptionsItemSelected(item);
