@@ -7,8 +7,10 @@ import android.os.Bundle;
 import android.provider.BaseColumns;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Toast;
@@ -21,7 +23,7 @@ public class NoteEditor extends AppCompatActivity {
     private long id;
     private String title, initialTitle;
     private String initialText = "ERROR LOADING TEXT";
-    private String path;
+    private String path, initialPath;
 
     private EditText text_tv;
 
@@ -72,6 +74,7 @@ public class NoteEditor extends AppCompatActivity {
             initialTitle = title;
             initialText = cursor.getString(cursor.getColumnIndexOrThrow(Diary.Entry.COLUMN_NAME_TEXT));
             path = cursor.getString(cursor.getColumnIndexOrThrow(Diary.Entry.COLUMN_NAME_PATH));
+            initialPath = path;
         }
         cursor.close();
 
@@ -83,7 +86,7 @@ public class NoteEditor extends AppCompatActivity {
         String text = text_tv.getEditableText().toString();
 
         // no need to save note if it wasn't changed
-        if (text.equals(initialText) & title.equals(initialTitle))
+        if (text.equals(initialText) & title.equals(initialTitle) & path.equals(initialPath))
             return;
 
         long date = System.currentTimeMillis();
@@ -138,15 +141,19 @@ public class NoteEditor extends AppCompatActivity {
                 break;
             }
             case R.id.rename: {
-                EditText input = new EditText(this);
-                input.setText(title);
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.MATCH_PARENT);
-                input.setLayoutParams(lp);
-                new AlertDialog.Builder(this).setTitle("Change note title").setView(input).setPositiveButton("Save", (dialog, which) -> {
-                    title = input.getEditableText().toString();
+                View view = LayoutInflater.from(this).inflate(R.layout.note_editor_edit_dialog, null);
+                EditText title_et = view.findViewById(R.id.title),
+                        path_et = view.findViewById(R.id.path);
+                title_et.setText(title);
+                path_et.setText(path);
+//                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+//                        LinearLayout.LayoutParams.MATCH_PARENT,
+//                        LinearLayout.LayoutParams.MATCH_PARENT);
+//                title_et.setLayoutParams(lp);
+                new AlertDialog.Builder(this).setTitle("Change note title").setView(title_et).setPositiveButton("Save", (dialog, which) -> {
+                    title = title_et.getEditableText().toString();
                     setTitle(title);
+                    path = path_et.getEditableText().toString();
                 }).setNegativeButton("Cancel", null).show();
                 break;
             }
