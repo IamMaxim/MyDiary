@@ -86,7 +86,7 @@ public class NoteEditor extends AppCompatActivity {
     private void saveNote() {
         String text = text_tv.getEditableText().toString();
 
-        // no need to save note if it wasn't changed
+        // no need to create note if it wasn't changed
         if (text.equals(initialText) & title.equals(initialTitle) & path.equals(initialPath))
             return;
 

@@ -1,6 +1,10 @@
 package ru.iammaxim.mydiary.DB;
 
+import android.content.ContentValues;
+import android.database.sqlite.SQLiteDatabase;
 import android.provider.BaseColumns;
+
+import ru.iammaxim.mydiary.App;
 
 /**
  * Created by maxim on 3/19/18.
@@ -28,10 +32,16 @@ public class Diary {
         public static final String COLUMN_NAME_DATE = "date";
         public static final String COLUMN_NAME_PATH = "path";
 
-//        public static final int id;
-//        public static final String title;
-//        public static final String text;
-//        public static final long date;
-//        public static final String path;
+        public static long create(String title, String text, long date, String path) {
+            SQLiteDatabase db = App.mDBHelper.getWritableDatabase();
+
+            ContentValues values = new ContentValues();
+            values.put(COLUMN_NAME_TITLE, title);
+            values.put(COLUMN_NAME_TEXT, text);
+            values.put(COLUMN_NAME_DATE, date);
+            values.put(COLUMN_NAME_PATH, path);
+
+            return db.insert(TABLE_NAME, null, values);
+        }
     }
 }

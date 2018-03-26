@@ -10,4 +10,16 @@ import ru.iammaxim.mydiary.DB.DBHelper;
 
 public class App extends Application {
     public static DBHelper mDBHelper;
+
+    @Override
+    public void onTerminate() {
+        super.onTerminate();
+        mDBHelper.close();
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        mDBHelper = new DBHelper(this);
+    }
 }

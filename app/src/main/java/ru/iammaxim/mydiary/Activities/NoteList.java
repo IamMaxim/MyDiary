@@ -1,6 +1,5 @@
 package ru.iammaxim.mydiary.Activities;
 
-import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -20,32 +19,33 @@ import java.util.ArrayList;
 import java.util.HashSet;
 
 import ru.iammaxim.mydiary.App;
-import ru.iammaxim.mydiary.DB.DBHelper;
 import ru.iammaxim.mydiary.DB.Diary;
 import ru.iammaxim.mydiary.R;
 
 public class NoteList extends AppCompatActivity {
     SimpleDateFormat sdf = new SimpleDateFormat("dd MMM yy HH:mm:ss");
     NoteListAdapter adapter;
+    // holds the path that was passed on activity open
     private String passedPath;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_note_list);
+
         passedPath = getIntent().getStringExtra("path");
+        // it passedPath is null, this is root node
         if (passedPath == null)
             passedPath = "";
+        // set title to path and enable back button
         if (!passedPath.isEmpty()) {
             setTitle(passedPath);
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
 
-        // init DB
-        App.mDBHelper = new DBHelper(this);
+        findViewById(R.id.fab).setOnClickListener(b -> createNewNote());
 
-        findViewById(R.id.fab).setOnClickListener(b -> createNewNote("New note", "", passedPath));
-
+        // init recycler view
         adapter = new NoteListAdapter();
         RecyclerView rv = findViewById(R.id.rv);
         rv.setAdapter(adapter);
@@ -55,6 +55,7 @@ public class NoteList extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // update list on activity resume
         loadDB();
     }
 
@@ -68,25 +69,10 @@ public class NoteList extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    private void createNewNote(String title, String text, String path) {
+    private void createNewNote() {
         long date = System.currentTimeMillis();
-
-        SQLiteDatabase db = App.mDBHelper.getWritableDatabase();
-
-        ContentValues values = new ContentValues();
-        values.put(Diary.Entry.COLUMN_NAME_TITLE, title);
-        values.put(Diary.Entry.COLUMN_NAME_TEXT, text);
-        values.put(Diary.Entry.COLUMN_NAME_DATE, date);
-        values.put(Diary.Entry.COLUMN_NAME_PATH, path);
-
-        long newRowId = db.insert(Diary.Entry.TABLE_NAME, null, values);
+        long newRowId = Diary.Entry.create("New note", "", date, passedPath);
         openNote(newRowId);
-    }
-
-    @Override
-    protected void onDestroy() {
-        App.mDBHelper.close();
-        super.onDestroy();
     }
 
     private void loadDB() {
@@ -146,20 +132,20 @@ public class NoteList extends AppCompatActivity {
         adapter.notifyDataSetChanged();
     }
 
-    public class Entry {
+    class Entry {
     }
 
     public class ExpandableEntry extends Entry {
         public String name, path;
 
-        public ExpandableEntry(String name, String path) {
+        ExpandableEntry(String name, String path) {
             this.name = name;
             this.path = path;
         }
     }
 
     public class NoteEntry extends Entry {
-        public NoteEntry(long id, String title, String text, long date, String path) {
+        NoteEntry(long id, String title, String text, long date, String path) {
             this.id = id;
             this.title = title;
             this.text = text;
@@ -182,8 +168,8 @@ public class NoteList extends AppCompatActivity {
     }
 
     public class NoteListAdapter extends RecyclerView.Adapter implements ItemClickListener {
-        public ArrayList<Entry> entries = new ArrayList<>();
-        public HashSet<String> expandableEntries = new HashSet<>();
+        ArrayList<Entry> entries = new ArrayList<>();
+        HashSet<String> expandableEntries = new HashSet<>();
 
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
@@ -270,7 +256,7 @@ public class NoteList extends AppCompatActivity {
         class ExpandableViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
             public TextView name;
 
-            public ExpandableViewHolder(View itemView) {
+            ExpandableViewHolder(View itemView) {
                 super(itemView);
                 itemView.setOnClickListener(this);
                 name = itemView.findViewById(R.id.name);
@@ -288,7 +274,7 @@ public class NoteList extends AppCompatActivity {
     }
 
     public static final class EntryType {
-        public static final int NOTE = 0,
+        static final int NOTE = 0,
                 EXPANDABLE = 1;
     }
 }
